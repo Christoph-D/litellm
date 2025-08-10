@@ -175,9 +175,9 @@ class NeedsToleranceUpdateError(Exception):
 
 def test_tokenizers():
     try:
-        ### test the openai, claude, cohere and llama2 tokenizers.
+        ### test the openai, deepseek, llama2, and llama3 tokenizers.
         ### The tokenizer value should be different for all
-        sample_text = "Hellö World, this is my input string! My name is ishaan CTO"
+        sample_text = "Hellö World, this is my input string! My name is ishaan CTO. 宜しくお願いします。"
 
         # openai tokenizer
         openai_tokens = token_counter(model="gpt-3.5-turbo", text=sample_text)
@@ -189,6 +189,9 @@ def test_tokenizers():
 
         # cohere tokenizer
         cohere_tokens = token_counter(model="command-nightly", text=sample_text)
+
+        # deepseek tokenizer
+        deepseek_tokens = token_counter(model="deepseek-chat", text=sample_text)
 
         # llama2 tokenizer
         llama2_tokens = token_counter(
@@ -206,12 +209,13 @@ def test_tokenizers():
         )
 
         print(
-            f"openai tokens: {openai_tokens}; claude tokens: {claude_tokens}; cohere tokens: {cohere_tokens}; llama2 tokens: {llama2_tokens}; llama3 tokens: {llama3_tokens_1}"
+            f"openai tokens: {openai_tokens}; claude tokens: {claude_tokens}; cohere tokens: {cohere_tokens}; deepseek tokens: {deepseek_tokens}; llama2 tokens: {llama2_tokens}; llama3 tokens: {llama3_tokens_1}"
         )
 
         # assert that all token values are different
         assert (
-            openai_tokens != llama2_tokens != llama3_tokens_1
+            len(set([openai_tokens, deepseek_tokens, llama2_tokens, llama3_tokens_1]))
+            == 4
         ), "Token values are not different."
 
         assert (

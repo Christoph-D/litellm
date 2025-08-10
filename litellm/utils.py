@@ -1738,6 +1738,10 @@ def _return_huggingface_tokenizer(model: str) -> Optional[SelectTokenizerRespons
     elif model in litellm.anthropic_models and "claude-3" not in model:
         claude_tokenizer = Tokenizer.from_str(claude_json_str)
         return {"type": "huggingface_tokenizer", "tokenizer": claude_tokenizer}
+    # Deepseek
+    elif "deepseek" in model.lower():
+        tokenizer = Tokenizer.from_pretrained("deepseek-ai/DeepSeek-V3")
+        return {"type": "huggingface_tokenizer", "tokenizer": tokenizer}
     # llama2
     elif "llama-2" in model.lower() or "replicate" in model.lower():
         tokenizer = Tokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
