@@ -120,31 +120,74 @@ class MistralConfig(OpenAIGPTConfig):
             return "any"
 
     @staticmethod
-    def _get_mistral_reasoning_system_prompt() -> str:
+    def _is_modern_magistral_model(model: str) -> bool:
+        """
+        Check if the model is a modern Magistral model.
+
+        Modern Magistral models are identified by having 'magistral-medium-' in the model name
+        followed by either 'latest' or a version number >= 2507.
+
+        These models require a new system prompt for reasoning, see
+        https://docs.mistral.ai/capabilities/reasoning/.
+
+        Args:
+            model: The model name to check
+
+        Returns:
+            bool: True if the model is a modern Magistral model, False otherwise
+        """
+        s = model.lower().split("magistral-medium-")
+        if len(s) < 2:
+            return False
+        version = s[1]
+        return version == "latest" or version >= "2507"
+
+    @staticmethod
+    def _get_mistral_reasoning_system_prompt(model: str) -> Union[str, List[dict]]:
         """
         Returns the system prompt for Mistral reasoning models.
-        Based on Mistral's documentation: https://huggingface.co/mistralai/Magistral-Small-2506
-
-        Mistral recommends the following system prompt for reasoning:
+        Based on Mistral's documentation, the prompt depends on the model version:
+          https://docs.mistral.ai/capabilities/reasoning/
+          https://huggingface.co/mistralai/Magistral-Small-2506
         """
-        return """
-        <s>[SYSTEM_PROMPT]system_prompt
-        A user will ask you to solve a task. You should first draft your thinking process (inner monologue) until you have derived the final answer. Afterwards, write a self-contained summary of your thoughts (i.e. your summary should be succinct but contain all the critical steps you needed to reach the conclusion). You should use Markdown to format your response. Write both your thoughts and summary in the same language as the task posed by the user. NEVER use \boxed{} in your response.
+        if MistralConfig._is_modern_magistral_model(model):
+            # New Magistral medium models use thinking blocks.
+            return [
+                {
+                    "type": "text",
+                    "text": "First draft your thinking process (inner monologue) until you arrive at a response. Format your response using Markdown, and use LaTeX for any mathematical equations. Write both your thoughts and the response in the same language as the input.\n\nYour thinking process must follow the template below:",
+                },
+                {
+                    "type": "thinking",
+                    "thinking": [
+                        {
+                            "type": "text",
+                            "text": "Your thoughts or/and draft, like working through an exercise on scratch paper. Be as casual and as long as you want until you are confident to generate the response to the user.",
+                        }
+                    ],
+                },
+                {"type": "text", "text": "Here, provide a self-contained response."},
+            ]
+        else:
+            # Older models use <think> tags.
+            return """
+            <s>[SYSTEM_PROMPT]system_prompt
+            A user will ask you to solve a task. You should first draft your thinking process (inner monologue) until you have derived the final answer. Afterwards, write a self-contained summary of your thoughts (i.e. your summary should be succinct but contain all the critical steps you needed to reach the conclusion). You should use Markdown to format your response. Write both your thoughts and summary in the same language as the task posed by the user. NEVER use \boxed{} in your response.
 
-        Your thinking process must follow the template below:
-        <think>
-        Your thoughts or/and draft, like working through an exercise on scratch paper. Be as casual and as long as you want until you are confident to generate a correct answer.
-        </think>
+            Your thinking process must follow the template below:
+            <think>
+            Your thoughts or/and draft, like working through an exercise on scratch paper. Be as casual and as long as you want until you are confident to generate a correct answer.
+            </think>
 
-        Here, provide a concise summary that reflects your reasoning and presents a clear final answer to the user. Don't mention that this is a summary.
+            Here, provide a concise summary that reflects your reasoning and presents a clear final answer to the user. Don't mention that this is a summary.
 
-        Problem:
+            Problem:
 
-        [/SYSTEM_PROMPT][INST]user_message[/INST]<think>
-        reasoning_traces
-        </think>
-        assistant_response</s>[INST]user_message[/INST]
-        """
+            [/SYSTEM_PROMPT][INST]user_message[/INST]<think>
+            reasoning_traces
+            </think>
+            assistant_response</s>[INST]user_message[/INST]
+            """
 
     def map_openai_params(
         self,
@@ -254,7 +297,8 @@ class MistralConfig(OpenAIGPTConfig):
                         return messages
 
         ## 2. If content is list, then convert to string
-        messages = handle_messages_with_content_list_to_str_conversion(messages)
+        if not self._is_modern_magistral_model(model):
+            messages = handle_messages_with_content_list_to_str_conversion(messages)
 
         ## 3. Handle name in message
         new_messages: List[AllMessageValues] = []
@@ -317,7 +361,7 @@ class MistralConfig(OpenAIGPTConfig):
         return messages
 
     def _add_reasoning_system_prompt_if_needed(
-        self, messages: List[AllMessageValues], optional_params: dict
+        self, messages: List[AllMessageValues], optional_params: dict, model: str
     ) -> List[AllMessageValues]:
         """
         Add reasoning system prompt for Mistral magistral models when reasoning_effort is specified.
@@ -333,22 +377,33 @@ class MistralConfig(OpenAIGPTConfig):
             for i, msg in enumerate(messages):
                 if msg.get("role") == "system":
                     existing_content = msg.get("content", "")
-                    reasoning_prompt = self._get_mistral_reasoning_system_prompt()
+                    reasoning_prompt = self._get_mistral_reasoning_system_prompt(model)
 
-                    # Handle both string and list content, preserving original format
-                    if isinstance(existing_content, str):
-                        # String content - prepend reasoning prompt
-                        new_content: Union[str, list] = (
-                            f"{reasoning_prompt}\n\n{existing_content}"
-                        )
-                    elif isinstance(existing_content, list):
-                        # List content - prepend reasoning prompt as text block
-                        new_content = [
-                            {"type": "text", "text": reasoning_prompt + "\n\n"}
-                        ] + existing_content
+                    if isinstance(reasoning_prompt, str):
+                        # Handle both string and list content, preserving original format
+                        if isinstance(existing_content, str):
+                            # String content - prepend reasoning prompt
+                            new_content: Union[str, list] = (
+                                f"{reasoning_prompt}\n\n{existing_content}"
+                            )
+                        elif isinstance(existing_content, list):
+                            # List content - prepend reasoning prompt as text block
+                            new_content = [
+                                {"type": "text", "text": reasoning_prompt + "\n\n"}
+                            ] + existing_content
+                        else:
+                            # Fallback for any other type - convert to string
+                            new_content = (
+                                f"{reasoning_prompt}\n\n{str(existing_content)}"
+                            )
                     else:
-                        # Fallback for any other type - convert to string
-                        new_content = f"{reasoning_prompt}\n\n{str(existing_content)}"
+                        # reasoning_prompt is a list - prepend it
+                        existing_content = (
+                            existing_content
+                            if isinstance(existing_content, list)
+                            else [{"type": "text", "text": existing_content}]
+                        )
+                        new_content = reasoning_prompt + existing_content
 
                     messages[i] = cast(
                         AllMessageValues, {**msg, "content": new_content}
@@ -360,7 +415,7 @@ class MistralConfig(OpenAIGPTConfig):
                 AllMessageValues,
                 {
                     "role": "system",
-                    "content": self._get_mistral_reasoning_system_prompt(),
+                    "content": self._get_mistral_reasoning_system_prompt(model),
                 },
             )
             messages = [reasoning_message] + messages
@@ -552,7 +607,7 @@ class MistralConfig(OpenAIGPTConfig):
             "_add_reasoning_prompt", False
         ):
             messages = self._add_reasoning_system_prompt_if_needed(
-                messages, optional_params
+                messages, optional_params, model
             )
 
         # Call parent transform_request which handles _transform_messages
