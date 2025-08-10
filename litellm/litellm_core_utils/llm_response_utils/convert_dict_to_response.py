@@ -270,6 +270,32 @@ def _handle_invalid_parallel_tool_calls(
         return tool_calls
 
 
+def _parse_list_content_for_reasoning(
+    content: list[dict],
+) -> Tuple[Optional[str], str]:
+    """
+    Parse the list content for reasoning.
+
+    Returns:
+    - reasoning_content: The first reasoning block, if present
+    - content: The content of the message
+    """
+    reasoning_block = None
+    text_blocks = []
+    for block in content:
+        if "type" not in block:
+            continue
+        # Collect only the first reasoning block
+        # because we need to return it as a single string.
+        if block["type"] == "thinking" and not reasoning_block:
+            t = block.get("thinking", [])
+            if len(t) > 0 and "text" in t[0]:
+                reasoning_block = t[0]["text"]
+        elif block["type"] == "text":
+            text_blocks.append(block["text"])
+    return reasoning_block, "\n\n".join(text_blocks)
+
+
 def _parse_content_for_reasoning(
     message_text: Optional[str],
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -308,6 +334,8 @@ def _extract_reasoning_content(message: dict) -> Tuple[Optional[str], Optional[s
         return message["reasoning_content"], message["content"]
     elif "reasoning" in message:
         return message["reasoning"], message["content"]
+    elif isinstance(message_content, list):
+        return _parse_list_content_for_reasoning(message_content)
     elif isinstance(message_content, str):
         return _parse_content_for_reasoning(message_content)
     return None, message_content

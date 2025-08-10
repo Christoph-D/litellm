@@ -903,3 +903,113 @@ def test_convert_to_model_response_object_with_thinking_content():
     resp: ModelResponse = convert_to_model_response_object(**args)
     assert resp is not None
     assert resp.choices[0].message.reasoning_content is not None
+
+
+def test_convert_to_model_response_object_with_list_thinking_content():
+    """Test that convert_to_model_response_object handles thinking content returned by Mistral correctly."""
+
+    args = {
+        "response_object": {
+            "id": "chatcmpl-8cc87354-70f3-4a14-b71b-332e965d98d2",
+            "created": 1741057687,
+            "model": "magistral-medium-2507",
+            "object": "chat.completion",
+            "system_fingerprint": None,
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {
+                        "content": [
+                            {
+                                "type": "thinking",
+                                "thinking": [
+                                    {
+                                        "type": "text",
+                                        "text": "The person is asking about \"litellm\" and included what appears to be a UUID or some form of identifier at the end of their message (fffffe14-7991-43d0-acd8-d3e606db31a8).\n\nLiteLLM is an open-source library/project that provides a unified interface for working with various Large Language Models (LLMs). It's essentially a lightweight package that standardizes the way developers can work with different LLM APIs like OpenAI, Anthropic, Cohere, etc. through a consistent interface.\n\nSome key features and aspects of LiteLLM:\n\n1. Unified API for multiple LLM providers (OpenAI, Anthropic, Azure, etc.)\n2. Standardized input/output formats\n3. Handles routing, fallbacks, and load balancing\n4. Provides logging and observability\n5. Can help with cost tracking across different providers\n6. Makes it easier to switch between different LLM providers\n\nThe UUID-like string they included doesn't seem directly related to the question, unless it's some form of identifier they're including for tracking purposes.",
+                                    }
+                                ],
+                            },
+                            {
+                                "type": "text",
+                                "text": "The question is asking for the sum of 1 and 1. The answer to this basic arithmetic problem is straightforward and well-known.",
+                            },
+                        ],
+                        "role": "assistant",
+                        "tool_calls": None,
+                    },
+                }
+            ],
+            "usage": {
+                "completion_tokens": 460,
+                "prompt_tokens": 65,
+                "total_tokens": 525,
+                "completion_tokens_details": None,
+                "prompt_tokens_details": {"audio_tokens": None, "cached_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+        },
+        "model_response_object": ModelResponse(),
+    }
+
+    resp: ModelResponse = convert_to_model_response_object(**args)
+    assert resp is not None
+    assert resp.choices[0].message.reasoning_content is not None
+
+
+def test_convert_to_model_response_object_with_mixed_list_thinking_content():
+    """Test that convert_to_model_response_object handles thinking content returned by Mistral correctly."""
+
+    args = {
+        "response_object": {
+            "id": "chatcmpl-8cc87354-70f3-4a14-b71b-332e965d98d2",
+            "created": 1741057687,
+            "model": "magistral-medium-2507",
+            "object": "chat.completion",
+            "system_fingerprint": None,
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "",
+                            },
+                            {
+                                "type": "thinking",
+                                "thinking": [
+                                    {
+                                        "type": "text",
+                                        "text": "The person is asking about \"litellm\" and included what appears to be a UUID or some form of identifier at the end of their message (fffffe14-7991-43d0-acd8-d3e606db31a8).\n\nLiteLLM is an open-source library/project that provides a unified interface for working with various Large Language Models (LLMs). It's essentially a lightweight package that standardizes the way developers can work with different LLM APIs like OpenAI, Anthropic, Cohere, etc. through a consistent interface.\n\nSome key features and aspects of LiteLLM:\n\n1. Unified API for multiple LLM providers (OpenAI, Anthropic, Azure, etc.)\n2. Standardized input/output formats\n3. Handles routing, fallbacks, and load balancing\n4. Provides logging and observability\n5. Can help with cost tracking across different providers\n6. Makes it easier to switch between different LLM providers\n\nThe UUID-like string they included doesn't seem directly related to the question, unless it's some form of identifier they're including for tracking purposes.",
+                                    }
+                                ],
+                            },
+                            {
+                                "type": "text",
+                                "text": "The question is asking for the sum of 1 and 1. The answer to this basic arithmetic problem is straightforward and well-known.",
+                            },
+                        ],
+                        "role": "assistant",
+                        "tool_calls": None,
+                    },
+                }
+            ],
+            "usage": {
+                "completion_tokens": 460,
+                "prompt_tokens": 65,
+                "total_tokens": 525,
+                "completion_tokens_details": None,
+                "prompt_tokens_details": {"audio_tokens": None, "cached_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+        },
+        "model_response_object": ModelResponse(),
+    }
+
+    resp: ModelResponse = convert_to_model_response_object(**args)
+    assert resp is not None
+    assert "UUID" in resp.choices[0].message.reasoning_content
